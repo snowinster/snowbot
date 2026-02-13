@@ -74,6 +74,7 @@ async def play_random(voice_client):
     ydl_opts = {
         "format": "bestaudio/best",
         "quiet": True,
+        "no_warnings": True,   # ⬅️ AJOUT ICI
         "noplaylist": True,
         "default_search": "ytsearch"
     }
