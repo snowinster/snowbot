@@ -7,6 +7,7 @@ from music.player import play_random, play_track
 from music.controls import MusicControls
 from utils.help_text import HELP_MESSAGE
 
+
 print("🚀 SNOWBOT VERSION WITH PLAY LOADED")
 
 intents = discord.Intents.default()
