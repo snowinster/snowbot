@@ -29,6 +29,7 @@ current_title = None
 HELP_MESSAGE = (
     "🎶 **SnowBot – Aide & commandes**\n\n"
     "▶️ **Musique**\n"
+    "• `!play <nom ou lien>` → Joue une musique\n"
     "• `!playlist` → Lance ta playlist personnelle (aléatoire)\n"
     "• `!np` → Affiche la musique en cours\n"
     "• `!pause` → Met la musique en pause\n"
@@ -134,6 +135,48 @@ async def play_random(vc, discord_user_id):
     print(f"🎶 Lecture : {current_title}")
 
 
+async def play_one_track(vc, query, discord_user_id):
+    global current_title
+
+    ydl_opts = {
+        "format": "bestaudio/best",
+        "quiet": True,
+        "no_warnings": True,
+        "noplaylist": True,
+        "default_search": "ytsearch"
+    }
+
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(query, download=False)
+        if "entries" in info:
+            info = info["entries"][0]
+
+        url = info["url"]
+        current_title = info["title"]
+
+    source = discord.PCMVolumeTransformer(
+        discord.FFmpegPCMAudio(
+            url,
+            before_options="-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
+            options="-vn"
+        ),
+        volume=0.7
+    )
+
+    def after_playing(_):
+        # Une fois le morceau terminé → on revient à la playlist perso
+        client.loop.call_soon_threadsafe(
+            asyncio.create_task,
+            schedule_next(vc, discord_user_id)
+        )
+
+    if vc.is_playing():
+        vc.stop()
+
+    vc.play(source, after=after_playing)
+    print(f"🎧 Lecture manuelle : {current_title}")
+
+
 async def schedule_next(vc, discord_user_id):
     await asyncio.sleep(1)
     if vc.is_connected():
@@ -224,6 +267,22 @@ async def on_message(message):
 
     if content == "!help":
         await message.channel.send(HELP_MESSAGE)
+
+    elif content.startswith("!play "):
+        if not message.author.voice:
+            await message.channel.send("❌ Tu dois être en vocal")
+            return
+
+        query = content[6:].strip()
+        channel = message.author.voice.channel
+
+        if not vc:
+            vc = await channel.connect()
+        elif vc.channel != channel:
+            await vc.move_to(channel)
+
+        await play_one_track(vc, query, user_id)
+        await message.channel.send(f"🎧 **Lecture :** {current_title}")
 
     elif content == "!playlist":
         if not message.author.voice:
