@@ -13,4 +13,4 @@ COPY . .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Lancer le bot
-CMD ["python", "snowbot.py"]
+CMD ["python", "snowbot/snowbot.py"]
