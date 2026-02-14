@@ -71,9 +71,26 @@ async def on_message(message):
     elif content == "!np" and current_title:
         await message.channel.send(f"🎶 **En cours :** {current_title}")
 
-    elif content == "!skip" and vc:
-        vc.stop()
-        await message.channel.send("⏭️ Skip")
+    elif content == "!pause":
+        if vc and vc.is_playing():
+            vc.pause()
+            await message.channel.send("⏸️ Pause")
+        else:
+            await message.channel.send("❄️ Aucune musique en cours.")
+
+    elif content == "!resume":
+        if vc and vc.is_paused():
+            vc.resume()
+            await message.channel.send("▶️ Reprise")
+        else:
+            await message.channel.send("❄️ Rien à reprendre.")
+
+    elif content == "!skip":
+        if vc and (vc.is_playing() or vc.is_paused()):
+            vc.stop()
+            await message.channel.send("⏭️ Skip")
+        else:
+            await message.channel.send("❄️ Aucune musique en cours.")
 
     elif content == "!leave" and vc:
         vc.stop()
