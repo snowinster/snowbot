@@ -21,8 +21,11 @@ tree = discord.app_commands.CommandTree(client)
 @tree.command(name="playlist", description="Lance ta playlist personnelle")
 async def playlist(interaction: discord.Interaction):
 
+    # 👇 1) On accuse réception IMMÉDIATEMENT
+    await interaction.response.defer()
+
     if not interaction.user.voice:
-        await interaction.response.send_message(
+        await interaction.followup.send(
             "❌ Tu dois être en vocal.",
             ephemeral=True
         )
@@ -39,7 +42,8 @@ async def playlist(interaction: discord.Interaction):
     if not vc.is_playing():
         await play_random(vc, interaction.user.id)
 
-    await interaction.response.send_message(
+    # 👇 2) On envoie les boutons après
+    await interaction.followup.send(
         "🎶 **SnowBot Controls**",
         view=MusicControls(interaction.guild)
     )
