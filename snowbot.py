@@ -9,11 +9,8 @@ import psycopg2
 TOKEN = os.environ["DISCORD_TOKEN"]
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
-print("ENV VARS:", list(os.environ.keys()))
-
 if not DATABASE_URL:
     raise RuntimeError("DATABASE_URL manquant dans l'environnement")
-
 
 conn = psycopg2.connect(DATABASE_URL)
 
@@ -36,6 +33,7 @@ def get_user_playlist(discord_user_id):
             SELECT musique
             FROM "Playlist"
             WHERE discord_user_id = %s
+            ORDER BY id
             """,
             (discord_user_id,)
         )
@@ -56,6 +54,22 @@ def add_track(discord_user_id, track):
         conn.commit()
 
 
+def remove_track(discord_user_id, track):
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            DELETE FROM "Playlist"
+            WHERE discord_user_id = %s
+              AND musique = %s
+            """,
+            (discord_user_id, track)
+        )
+        deleted = cur.rowcount
+        conn.commit()
+
+    return deleted
+
+
 # ─────────────── MUSIQUE ───────────────
 async def play_random(vc, discord_user_id):
     global last_song, current_title
@@ -63,10 +77,11 @@ async def play_random(vc, discord_user_id):
     playlist = get_user_playlist(discord_user_id)
 
     if not playlist:
-        print("❌ Playlist vide")
+        await vc.channel.send("📭 Ta playlist est vide.")
         return
 
-    song = random.choice([s for s in playlist if s != last_song])
+    choices = [s for s in playlist if s != last_song]
+    song = random.choice(choices if choices else playlist)
     last_song = song
 
     ydl_opts = {
@@ -110,13 +125,12 @@ async def schedule_next(vc, discord_user_id):
         await play_random(vc, discord_user_id)
 
 
-# ─────────────── AUTO-LEAVE 30s ───────────────
+# ─────────────── AUTO-LEAVE ───────────────
 async def auto_leave(vc):
     await asyncio.sleep(30)
     if vc.is_connected():
         humans = [m for m in vc.channel.members if not m.bot]
         if not humans:
-            print("👋 Vocal vide → auto leave")
             await vc.disconnect()
 
 
@@ -174,13 +188,13 @@ class MusicControls(discord.ui.View):
             await interaction.response.send_message("👋 Déconnecté", ephemeral=True)
 
 
-# ─────────────── COMMANDES TEXTE ───────────────
+# ─────────────── COMMANDES ───────────────
 @client.event
 async def on_message(message):
     if message.author.bot:
         return
 
-    content = message.content.lower()
+    content = message.content.strip()
     vc = message.guild.voice_client
     user_id = message.author.id
 
@@ -204,9 +218,31 @@ async def on_message(message):
         )
 
     elif content.startswith("!add "):
-        track = content.replace("!add ", "")
+        track = content[5:].strip()
         add_track(user_id, track)
-        await message.channel.send(f"✅ Ajouté à ta playlist : **{track}**")
+        await message.channel.send(f"✅ Ajouté : **{track}**")
+
+    elif content == "!list":
+        playlist = get_user_playlist(user_id)
+
+        if not playlist:
+            await message.channel.send("📭 Ta playlist est vide.")
+            return
+
+        msg = "**🎵 Ta playlist :**\n"
+        for i, track in enumerate(playlist, start=1):
+            msg += f"{i}. {track}\n"
+
+        await message.channel.send(msg)
+
+    elif content.startswith("!remove "):
+        track = content[8:].strip()
+        deleted = remove_track(user_id, track)
+
+        if deleted == 0:
+            await message.channel.send(f"⚠️ **{track}** n'est pas dans ta playlist.")
+        else:
+            await message.channel.send(f"🗑️ **{track}** supprimé.")
 
     elif content == "!skip" and vc:
         vc.stop()
