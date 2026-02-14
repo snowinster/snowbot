@@ -12,7 +12,12 @@ YDL_OPTIONS = {
     "quiet": True,
     "no_warnings": True,
     "noplaylist": True,
-    "default_search": "ytsearch"
+    "default_search": "ytsearch",
+    "extractor_args": {
+        "youtube": {
+            "player_client": ["android"]
+        }
+    }
 }
 
 FFMPEG_OPTIONS = {
