@@ -38,7 +38,6 @@ def get_user_playlist(discord_user_id):
             (discord_user_id,)
         )
         rows = cur.fetchall()
-
     return [r[0] for r in rows]
 
 
@@ -60,13 +59,12 @@ def remove_track(discord_user_id, track):
             """
             DELETE FROM "Playlist"
             WHERE discord_user_id = %s
-              AND musique = %s
+            AND LOWER(musique) = LOWER(%s)
             """,
             (discord_user_id, track)
         )
         deleted = cur.rowcount
         conn.commit()
-
     return deleted
 
 
@@ -75,13 +73,11 @@ async def play_random(vc, discord_user_id):
     global last_song, current_title
 
     playlist = get_user_playlist(discord_user_id)
-
     if not playlist:
-        await vc.channel.send("📭 Ta playlist est vide.")
+        print("❌ Playlist vide")
         return
 
-    choices = [s for s in playlist if s != last_song]
-    song = random.choice(choices if choices else playlist)
+    song = random.choice([s for s in playlist if s != last_song])
     last_song = song
 
     ydl_opts = {
@@ -138,7 +134,6 @@ async def auto_leave(vc):
 async def on_voice_state_update(member, before, after):
     if member.bot:
         return
-
     vc = member.guild.voice_client
     if vc and vc.channel:
         humans = [m for m in vc.channel.members if not m.bot]
@@ -222,27 +217,37 @@ async def on_message(message):
         add_track(user_id, track)
         await message.channel.send(f"✅ Ajouté : **{track}**")
 
-    elif content == "!list":
-        playlist = get_user_playlist(user_id)
-
-        if not playlist:
-            await message.channel.send("📭 Ta playlist est vide.")
-            return
-
-        msg = "**🎵 Ta playlist :**\n"
-        for i, track in enumerate(playlist, start=1):
-            msg += f"{i}. {track}\n"
-
-        await message.channel.send(msg)
-
     elif content.startswith("!remove "):
         track = content[8:].strip()
         deleted = remove_track(user_id, track)
-
-        if deleted == 0:
-            await message.channel.send(f"⚠️ **{track}** n'est pas dans ta playlist.")
+        if deleted:
+            await message.channel.send(f"🗑️ Supprimé : **{track}**")
         else:
-            await message.channel.send(f"🗑️ **{track}** supprimé.")
+            await message.channel.send("❌ Titre introuvable dans ta playlist")
+
+    elif content == "!list":
+        playlist = get_user_playlist(user_id)
+        if not playlist:
+            await message.channel.send("📭 Ta playlist est vide")
+        else:
+            text = "\n".join(f"{i+1}. {s}" for i, s in enumerate(playlist))
+            await message.channel.send(f"🎧 **Ta playlist :**\n{text}")
+
+    elif content == "!help":
+        await message.channel.send(
+            "🎶 **SnowBot – Aide & commandes**\n\n"
+            "▶️ **Musique**\n"
+            "• `!playlist` → Lance ta playlist personnelle\n"
+            "• `!np` → Musique en cours\n"
+            "• `!pause` / `!resume`\n"
+            "• `!skip`\n"
+            "• `!leave`\n\n"
+            "📚 **Playlist**\n"
+            "• `!add <nom>`\n"
+            "• `!remove <nom>`\n"
+            "• `!list`\n\n"
+            "ℹ️ Chaque utilisateur a **sa propre playlist**"
+        )
 
     elif content == "!skip" and vc:
         vc.stop()
