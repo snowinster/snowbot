@@ -25,6 +25,24 @@ last_song = None
 current_title = None
 
 
+# ─────────────── HELP TEXT ───────────────
+HELP_MESSAGE = (
+    "🎶 **SnowBot – Aide & commandes**\n\n"
+    "▶️ **Musique**\n"
+    "• `!playlist` → Lance ta playlist personnelle (aléatoire)\n"
+    "• `!np` → Affiche la musique en cours\n"
+    "• `!pause` → Met la musique en pause\n"
+    "• `!resume` → Reprend la musique\n"
+    "• `!skip` → Passe à la musique suivante\n"
+    "• `!leave` → Déconnecte le bot du vocal\n\n"
+    "📚 **Playlist**\n"
+    "• `!add <nom>` → Ajoute une musique à ta playlist\n"
+    "• `!remove <nom>` → Supprime une musique de ta playlist\n"
+    "• `!list` → Affiche ta playlist personnelle\n\n"
+    "ℹ️ Astuce : chaque utilisateur a **sa propre playlist**."
+)
+
+
 # ─────────────── DB HELPERS ───────────────
 def get_user_playlist(discord_user_id):
     with conn.cursor() as cur:
@@ -38,7 +56,6 @@ def get_user_playlist(discord_user_id):
             (discord_user_id,)
         )
         rows = cur.fetchall()
-
     return [r[0] for r in rows]
 
 
@@ -66,7 +83,6 @@ def remove_track(discord_user_id, track):
         )
         deleted = cur.rowcount
         conn.commit()
-
     return deleted
 
 
@@ -96,7 +112,6 @@ async def play_random(vc, discord_user_id):
         info = ydl.extract_info(song, download=False)
         if "entries" in info:
             info = info["entries"][0]
-
         url = info["url"]
         current_title = info["title"]
 
@@ -177,8 +192,17 @@ class MusicControls(discord.ui.View):
     async def np(self, interaction, _):
         if current_title:
             await interaction.response.send_message(
-                f"🎶 **En cours :** {current_title}", ephemeral=True
+                f"🎶 **En cours :** {current_title}",
+                ephemeral=True
             )
+
+    # 🔹 BOUTON HELP (ajouté après Now Playing)
+    @discord.ui.button(label="Help", emoji="❓", style=discord.ButtonStyle.secondary)
+    async def help(self, interaction, _):
+        await interaction.response.send_message(
+            HELP_MESSAGE,
+            ephemeral=True
+        )
 
     @discord.ui.button(label="Leave", emoji="👋", style=discord.ButtonStyle.danger)
     async def leave(self, interaction, _):
@@ -198,7 +222,10 @@ async def on_message(message):
     vc = message.guild.voice_client
     user_id = message.author.id
 
-    if content == "!playlist":
+    if content == "!help":
+        await message.channel.send(HELP_MESSAGE)
+
+    elif content == "!playlist":
         if not message.author.voice:
             await message.channel.send("❌ Tu dois être en vocal")
             return
@@ -224,7 +251,6 @@ async def on_message(message):
 
     elif content == "!list":
         playlist = get_user_playlist(user_id)
-
         if not playlist:
             await message.channel.send("📭 Ta playlist est vide.")
             return
