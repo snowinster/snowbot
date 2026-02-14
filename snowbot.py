@@ -7,7 +7,13 @@ import psycopg2
 
 # ─────────────── CONFIG ───────────────
 TOKEN = os.environ["DISCORD_TOKEN"]
-DATABASE_URL = os.environ["DATABASE_URL"]
+DATABASE_URL = os.environ.get("DATABASE_URL")
+
+print("ENV VARS:", list(os.environ.keys()))
+
+if not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL manquant dans l'environnement")
+
 
 conn = psycopg2.connect(DATABASE_URL)
 
