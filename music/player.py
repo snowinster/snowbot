@@ -101,8 +101,12 @@ async def play_track(vc, query: str):
         volume=0.7
     )
 
+    def after_playing(error):
+        if error:
+            print("Playback error:", error)
+
     vc.stop()
-    vc.play(source)
+    vc.play(source, after=after_playing)
 
 
 async def schedule_next(vc, discord_user_id):
