@@ -3,26 +3,13 @@ import yt_dlp
 import asyncio
 import random
 import os
+import psycopg2
 
+# ─────────────── CONFIG ───────────────
 TOKEN = os.environ["DISCORD_TOKEN"]
+DATABASE_URL = os.environ["DATABASE_URL"]
 
-PLAYLIST = [
-    "you say run",
-    "Departure",
-    "black clover Opening 10",
-    "Heavy is the crown linkin park",
-    "Mashle divine visionary",
-    "Overlord clattanoia",
-    "JINGO JUNGLE",
-    "Undertale Megalovania",
-    "SNK you see big girl",
-    "Nightcall kavinsky",
-    "Bloody stream coda",
-    "Little dark age mgmt",
-    "Take me out franz ferdinand",
-    "Happy doja cat",
-    "bleach number one"
-]
+conn = psycopg2.connect(DATABASE_URL)
 
 # ─────────────── INTENTS ───────────────
 intents = discord.Intents.default()
@@ -35,11 +22,45 @@ last_song = None
 current_title = None
 
 
+# ─────────────── DB HELPERS ───────────────
+def get_user_playlist(discord_user_id):
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT musique
+            FROM "Playlist"
+            WHERE discord_user_id = %s
+            """,
+            (discord_user_id,)
+        )
+        rows = cur.fetchall()
+
+    return [r[0] for r in rows]
+
+
+def add_track(discord_user_id, track):
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO "Playlist" (discord_user_id, musique)
+            VALUES (%s, %s)
+            """,
+            (discord_user_id, track)
+        )
+        conn.commit()
+
+
 # ─────────────── MUSIQUE ───────────────
-async def play_random(vc):
+async def play_random(vc, discord_user_id):
     global last_song, current_title
 
-    song = random.choice([s for s in PLAYLIST if s != last_song])
+    playlist = get_user_playlist(discord_user_id)
+
+    if not playlist:
+        print("❌ Playlist vide")
+        return
+
+    song = random.choice([s for s in playlist if s != last_song])
     last_song = song
 
     ydl_opts = {
@@ -70,17 +91,17 @@ async def play_random(vc):
     def after_playing(_):
         client.loop.call_soon_threadsafe(
             asyncio.create_task,
-            schedule_next(vc)
+            schedule_next(vc, discord_user_id)
         )
 
     vc.play(source, after=after_playing)
     print(f"🎶 Lecture : {current_title}")
 
 
-async def schedule_next(vc):
+async def schedule_next(vc, discord_user_id):
     await asyncio.sleep(1)
     if vc.is_connected():
-        await play_random(vc)
+        await play_random(vc, discord_user_id)
 
 
 # ─────────────── AUTO-LEAVE 30s ───────────────
@@ -155,6 +176,7 @@ async def on_message(message):
 
     content = message.content.lower()
     vc = message.guild.voice_client
+    user_id = message.author.id
 
     if content == "!playlist":
         if not message.author.voice:
@@ -168,12 +190,17 @@ async def on_message(message):
             await vc.move_to(channel)
 
         if not vc.is_playing():
-            await play_random(vc)
+            await play_random(vc, user_id)
 
         await message.channel.send(
             "🎶 **SnowBot Controls**",
             view=MusicControls(message.guild)
         )
+
+    elif content.startswith("!add "):
+        track = content.replace("!add ", "")
+        add_track(user_id, track)
+        await message.channel.send(f"✅ Ajouté à ta playlist : **{track}**")
 
     elif content == "!skip" and vc:
         vc.stop()
