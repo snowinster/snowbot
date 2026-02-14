@@ -1,6 +1,7 @@
 HELP_MESSAGE = (
     "🎶 **SnowBot – Aide & commandes**\n\n"
     "▶️ **Musique**\n"
+    "• `/play <nom ou lien>` → Joue une musique immédiatement\n"
     "• `/playlist` → Lance ta playlist personnelle (aléatoire)\n"
     "• `/np` → Affiche la musique en cours\n"
     "• `/pause` → Met la musique en pause\n"

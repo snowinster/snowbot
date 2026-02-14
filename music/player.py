@@ -75,6 +75,36 @@ async def play_random(vc, discord_user_id):
     vc.play(source, after=after_playing)
 
 
+async def play_track(vc, query: str):
+    """
+    Joue une musique directement depuis une recherche ou un lien.
+    Ne dépend PAS de la playlist.
+    """
+
+    try:
+        with yt_dlp.YoutubeDL(YDL_OPTIONS) as ydl:
+            info = ydl.extract_info(query, download=False)
+
+            if "entries" in info:
+                info = info["entries"][0]
+
+            state.current_title = info.get("title", "Titre inconnu")
+            url = info["url"]
+
+    except Exception as e:
+        await vc.channel.send("❌ Erreur lors du chargement.")
+        print("YTDLP ERROR:", e)
+        return
+
+    source = discord.PCMVolumeTransformer(
+        discord.FFmpegPCMAudio(url, **FFMPEG_OPTIONS),
+        volume=0.7
+    )
+
+    vc.stop()
+    vc.play(source)
+
+
 async def schedule_next(vc, discord_user_id):
     """
     Attends 1 seconde puis relance une musique si le bot est toujours connecté.

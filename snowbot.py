@@ -6,7 +6,7 @@ from db.playlist import add_track, remove_track, get_user_playlist
 from music.player import play_random
 from music.controls import MusicControls
 from utils.help_text import HELP_MESSAGE
-
+from music.player import play_random, play_track
 
 intents = discord.Intents.default()
 intents.voice_states = True
@@ -45,6 +45,37 @@ async def playlist(interaction: discord.Interaction):
     # 👇 2) On envoie les boutons après
     await interaction.followup.send(
         "🎶 **SnowBot Controls**",
+        view=MusicControls(interaction.guild)
+    )
+
+
+# ─────────────────────────────
+# ▶️ /play
+# ─────────────────────────────
+@tree.command(name="play", description="Joue une musique directement")
+async def play(interaction: discord.Interaction, musique: str):
+
+    await interaction.response.defer()
+
+    if not interaction.user.voice:
+        await interaction.followup.send(
+            "❌ Tu dois être en vocal.",
+            ephemeral=True
+        )
+        return
+
+    channel = interaction.user.voice.channel
+    vc = interaction.guild.voice_client
+
+    if not vc:
+        vc = await channel.connect()
+    elif vc.channel != channel:
+        await vc.move_to(channel)
+
+    await play_track(vc, musique)
+
+    await interaction.followup.send(
+        f"🎶 Lecture : **{musique}**",
         view=MusicControls(interaction.guild)
     )
 
