@@ -74,7 +74,7 @@ async def play_random(voice_client):
     ydl_opts = {
         "format": "bestaudio/best",
         "quiet": True,
-        "no_warnings": True,   # ⬅️ AJOUT ICI
+        "no_warnings": True,
         "noplaylist": True,
         "default_search": "ytsearch"
     }
@@ -97,9 +97,6 @@ async def play_random(voice_client):
     )
 
     def after_playing(error):
-        if error:
-            print(f"❌ Erreur audio : {error}")
-
         client.loop.call_soon_threadsafe(
             asyncio.create_task,
             schedule_next(voice_client)
@@ -138,6 +135,37 @@ async def join_and_play(guild, author):
         return vc, "ℹ️ La musique est déjà en cours"
 
 
+# ─────────────── AUTO-LEAVE 30s ───────────────
+async def auto_leave_after_delay(voice_client):
+    await asyncio.sleep(30)
+
+    if not voice_client.is_connected():
+        return
+
+    # humains uniquement (on ignore les bots)
+    humans = [m for m in voice_client.channel.members if not m.bot]
+
+    if len(humans) == 0:
+        print("👋 Vocal vide depuis 30s → déconnexion")
+        await voice_client.disconnect()
+
+
+@client.event
+async def on_voice_state_update(member, before, after):
+    if member.bot:
+        return
+
+    vc = member.guild.voice_client
+    if not vc or not vc.channel:
+        return
+
+    humans = [m for m in vc.channel.members if not m.bot]
+
+    if len(humans) == 0:
+        print("⏳ Plus personne dans le vocal → timer 30s lancé")
+        client.loop.create_task(auto_leave_after_delay(vc))
+
+
 # ─────────────── EVENTS ───────────────
 @client.event
 async def on_ready():
@@ -152,51 +180,34 @@ async def on_message(message):
     content = message.content.lower()
     vc = message.guild.voice_client
 
-    # ───── PLAYLIST ─────
     if content == "!playlist":
         vc, msg = await join_and_play(message.guild, message.author)
         await message.channel.send(msg)
 
-    # ───── SKIP ─────
     elif content == "!skip":
         if vc and vc.is_playing():
             vc.stop()
             await message.channel.send("⏭️ Musique suivante")
-        else:
-            await message.channel.send("❌ Aucune musique en cours")
 
-    # ───── PAUSE ─────
     elif content == "!pause":
         if vc and vc.is_playing():
             vc.pause()
             await message.channel.send("⏸️ Musique en pause")
-        else:
-            await message.channel.send("❌ Rien à mettre en pause")
 
-    # ───── RESUME ─────
     elif content == "!resume":
         if vc and vc.is_paused():
             vc.resume()
             await message.channel.send("▶️ Reprise de la musique")
-        else:
-            await message.channel.send("❌ La musique n'est pas en pause")
 
-    # ───── NOW PLAYING ─────
     elif content == "!np":
         if vc and (vc.is_playing() or vc.is_paused()):
             await message.channel.send(f"🎶 **En cours :** {current_title}")
-        else:
-            await message.channel.send("❌ Aucune musique en cours")
 
-    # ───── LEAVE ─────
     elif content == "!leave":
         if vc:
-            if vc.is_playing() or vc.is_paused():
-                vc.stop()
+            vc.stop()
             await vc.disconnect()
-            await message.channel.send("👋 Bot déconnecté du salon vocal")
-        else:
-            await message.channel.send("❌ Le bot n'est pas connecté")
+            await message.channel.send("👋 Bot déconnecté")
 
 
 # ─────────────── RUN ───────────────
