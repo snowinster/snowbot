@@ -195,14 +195,4 @@ async def help_command(interaction: discord.Interaction):
         ephemeral=True
     )
 
-
-# ─────────────────────────────
-# READY EVENT
-# ─────────────────────────────
-@client.event
-async def on_ready():
-    await tree.sync()
-    print(f"✅ Connecté en tant que {client.user}")
-
-
 client.run(TOKEN)
