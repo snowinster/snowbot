@@ -55,6 +55,7 @@ async def playlist(interaction: discord.Interaction):
 # ▶️ /play
 # ─────────────────────────────
 @tree.command(name="play", description="Joue une musique directement")
+@discord.app_commands.describe(musique="Nom ou lien de la musique")
 async def play(interaction: discord.Interaction, musique: str):
 
     await interaction.response.defer()
