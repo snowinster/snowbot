@@ -71,6 +71,10 @@ async def on_message(message):
     elif content == "!np" and current_title:
         await message.channel.send(f"🎶 **En cours :** {current_title}")
 
+    elif content == "!skip" and vc:
+        vc.stop()
+        await message.channel.send("⏭️ Skip")
+
     elif content == "!leave" and vc:
         vc.stop()
         await vc.disconnect()
