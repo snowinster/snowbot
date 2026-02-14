@@ -1,0 +1,15 @@
+HELP_MESSAGE = (
+    "🎶 **SnowBot – Aide & commandes**\n\n"
+    "▶️ **Musique**\n"
+    "• `!playlist` → Lance ta playlist personnelle (aléatoire)\n"
+    "• `!np` → Affiche la musique en cours\n"
+    "• `!pause` → Met la musique en pause\n"
+    "• `!resume` → Reprend la musique\n"
+    "• `!skip` → Passe à la musique suivante\n"
+    "• `!leave` → Déconnecte le bot du vocal\n\n"
+    "📚 **Playlist**\n"
+    "• `!add <nom>` → Ajoute une musique à ta playlist\n"
+    "• `!remove <nom>` → Supprime une musique de ta playlist\n"
+    "• `!list` → Affiche ta playlist personnelle\n\n"
+    "ℹ️ Astuce : chaque utilisateur a **sa propre playlist**."
+)
