@@ -1,7 +1,7 @@
 import discord
 import music.state as state
 
-from config import TOKEN
+from config import TOKEN, ENV, DEV_GUILD_ID
 from db.playlist import add_track, remove_track, get_user_playlist
 from music.player import play_random
 from music.controls import MusicControls
@@ -198,7 +198,16 @@ async def help_command(interaction: discord.Interaction):
 
 @client.event
 async def on_ready():
-    await tree.sync()
-    print(f"Connecté en tant que {client.user}")
+
+    if ENV == "DEV":
+        guild = discord.Object(id=DEV_GUILD_ID)
+        await tree.sync(guild=guild)
+        print("✅ Sync DEV instantané")
+
+    else:
+        await tree.sync()
+        print("🌍 Sync GLOBAL")
+
+    print(f"❄️ SnowBot connecté en tant que {client.user}")
 
 client.run(TOKEN)
