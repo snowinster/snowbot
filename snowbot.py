@@ -29,7 +29,6 @@ current_title = None
 HELP_MESSAGE = (
     "🎶 **SnowBot – Aide & commandes**\n\n"
     "▶️ **Musique**\n"
-    "• `!play <nom ou lien>` → Joue une musique\n"
     "• `!playlist` → Lance ta playlist personnelle (aléatoire)\n"
     "• `!np` → Affiche la musique en cours\n"
     "• `!pause` → Met la musique en pause\n"
@@ -267,22 +266,6 @@ async def on_message(message):
 
     if content == "!help":
         await message.channel.send(HELP_MESSAGE)
-
-    elif content.startswith("!play "):
-        if not message.author.voice:
-            await message.channel.send("❌ Tu dois être en vocal")
-            return
-
-        query = content[6:].strip()
-        channel = message.author.voice.channel
-
-        if not vc:
-            vc = await channel.connect()
-        elif vc.channel != channel:
-            await vc.move_to(channel)
-
-        await play_one_track(vc, query, user_id)
-        await message.channel.send(f"🎧 **Lecture :** {current_title}")
 
     elif content == "!playlist":
         if not message.author.voice:
