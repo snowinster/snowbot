@@ -1,104 +1,207 @@
 import discord
+import music.state as state
 
 from config import TOKEN
 from db.playlist import add_track, remove_track, get_user_playlist
 from music.player import play_random
 from music.controls import MusicControls
-from music.state import current_title
 from utils.help_text import HELP_MESSAGE
 
 
 intents = discord.Intents.default()
 intents.voice_states = True
-intents.message_content = True
 
 client = discord.Client(intents=intents)
+tree = discord.app_commands.CommandTree(client)
 
 
-@client.event
-async def on_message(message):
-    if message.author.bot:
+# ─────────────────────────────
+# 🎶 /playlist
+# ─────────────────────────────
+@tree.command(name="playlist", description="Lance ta playlist personnelle")
+async def playlist(interaction: discord.Interaction):
+
+    if not interaction.user.voice:
+        await interaction.response.send_message(
+            "❌ Tu dois être en vocal.",
+            ephemeral=True
+        )
         return
 
-    content = message.content.strip()
-    vc = message.guild.voice_client
-    user_id = message.author.id
+    channel = interaction.user.voice.channel
+    vc = interaction.guild.voice_client
 
-    if content == "!help":
-        await message.channel.send(HELP_MESSAGE)
+    if not vc:
+        vc = await channel.connect()
+    elif vc.channel != channel:
+        await vc.move_to(channel)
 
-    elif content == "!playlist":
-        if not message.author.voice:
-            await message.channel.send("❌ Tu dois être en vocal")
-            return
+    if not vc.is_playing():
+        await play_random(vc, interaction.user.id)
 
-        channel = message.author.voice.channel
-        if not vc:
-            vc = await channel.connect()
-        elif vc.channel != channel:
-            await vc.move_to(channel)
+    await interaction.response.send_message(
+        "🎶 **SnowBot Controls**",
+        view=MusicControls(interaction.guild)
+    )
 
-        if not vc.is_playing():
-            await play_random(vc, user_id)
 
-        await message.channel.send(
-            "🎶 **SnowBot Controls**",
-            view=MusicControls(message.guild)
+# ─────────────────────────────
+# ➕ /add
+# ─────────────────────────────
+@tree.command(name="add", description="Ajoute une musique à ta playlist")
+async def add(interaction: discord.Interaction, track: str):
+
+    add_track(interaction.user.id, track)
+
+    await interaction.response.send_message(
+        f"✅ Ajouté : **{track}**",
+        ephemeral=True
+    )
+
+
+# ─────────────────────────────
+# ➖ /remove
+# ─────────────────────────────
+@tree.command(name="remove", description="Supprime une musique de ta playlist")
+async def remove(interaction: discord.Interaction, track: str):
+
+    deleted = remove_track(interaction.user.id, track)
+    msg = "🗑️ Supprimé." if deleted else "⚠️ Pas trouvé."
+
+    await interaction.response.send_message(msg, ephemeral=True)
+
+
+# ─────────────────────────────
+# 📜 /list
+# ─────────────────────────────
+@tree.command(name="list", description="Affiche ta playlist")
+async def list_playlist(interaction: discord.Interaction):
+
+    playlist = get_user_playlist(interaction.user.id)
+
+    if not playlist:
+        await interaction.response.send_message(
+            "📭 Playlist vide.",
+            ephemeral=True
+        )
+        return
+
+    await interaction.response.send_message(
+        "**🎵 Ta playlist :**\n" +
+        "\n".join(f"{i+1}. {t}" for i, t in enumerate(playlist)),
+        ephemeral=True
+    )
+
+
+# ─────────────────────────────
+# 🎵 /np
+# ─────────────────────────────
+@tree.command(name="np", description="Musique en cours")
+async def now_playing(interaction: discord.Interaction):
+
+    if state.current_title:
+        await interaction.response.send_message(
+            f"🎶 **En cours :** {state.current_title}",
+            ephemeral=True
+        )
+    else:
+        await interaction.response.send_message(
+            "❄️ Aucune musique en cours.",
+            ephemeral=True
         )
 
-    elif content.startswith("!add "):
-        track = content[5:].strip()
-        add_track(user_id, track)
-        await message.channel.send(f"✅ Ajouté : **{track}**")
 
-    elif content.startswith("!remove "):
-        track = content[8:].strip()
-        deleted = remove_track(user_id, track)
-        msg = "🗑️ Supprimé." if deleted else "⚠️ Pas trouvé."
-        await message.channel.send(msg)
+# ─────────────────────────────
+# ⏸️ /pause
+# ─────────────────────────────
+@tree.command(name="pause", description="Met la musique en pause")
+async def pause(interaction: discord.Interaction):
 
-    elif content == "!list":
-        playlist = get_user_playlist(user_id)
-        if not playlist:
-            await message.channel.send("📭 Playlist vide.")
-            return
+    vc = interaction.guild.voice_client
 
-        await message.channel.send(
-            "**🎵 Ta playlist :**\n" +
-            "\n".join(f"{i+1}. {t}" for i, t in enumerate(playlist))
+    if vc and vc.is_playing():
+        vc.pause()
+        await interaction.response.send_message("⏸️ Pause")
+    else:
+        await interaction.response.send_message(
+            "❄️ Aucune musique en cours.",
+            ephemeral=True
         )
 
-    elif content == "!np" and current_title:
-        await message.channel.send(f"🎶 **En cours :** {current_title}")
 
-    elif content == "!pause":
-        if vc and vc.is_playing():
-            vc.pause()
-            await message.channel.send("⏸️ Pause")
-        else:
-            await message.channel.send("❄️ Aucune musique en cours.")
+# ─────────────────────────────
+# ▶️ /resume
+# ─────────────────────────────
+@tree.command(name="resume", description="Reprend la musique")
+async def resume(interaction: discord.Interaction):
 
-    elif content == "!resume":
-        if vc and vc.is_paused():
-            vc.resume()
-            await message.channel.send("▶️ Reprise")
-        else:
-            await message.channel.send("❄️ Rien à reprendre.")
+    vc = interaction.guild.voice_client
 
-    elif content == "!skip":
-        if vc and (vc.is_playing() or vc.is_paused()):
-            vc.stop()
-            await message.channel.send("⏭️ Skip")
-        else:
-            await message.channel.send("❄️ Aucune musique en cours.")
+    if vc and vc.is_paused():
+        vc.resume()
+        await interaction.response.send_message("▶️ Reprise")
+    else:
+        await interaction.response.send_message(
+            "❄️ Rien à reprendre.",
+            ephemeral=True
+        )
 
-    elif content == "!leave" and vc:
+
+# ─────────────────────────────
+# ⏭️ /skip
+# ─────────────────────────────
+@tree.command(name="skip", description="Passe à la musique suivante")
+async def skip(interaction: discord.Interaction):
+
+    vc = interaction.guild.voice_client
+
+    if vc and (vc.is_playing() or vc.is_paused()):
+        vc.stop()
+        await interaction.response.send_message("⏭️ Skip")
+    else:
+        await interaction.response.send_message(
+            "❄️ Aucune musique en cours.",
+            ephemeral=True
+        )
+
+
+# ─────────────────────────────
+# 👋 /leave
+# ─────────────────────────────
+@tree.command(name="leave", description="Déconnecte le bot du vocal")
+async def leave(interaction: discord.Interaction):
+
+    vc = interaction.guild.voice_client
+
+    if vc:
         vc.stop()
         await vc.disconnect()
+        await interaction.response.send_message("👋 Déconnecté.")
+    else:
+        await interaction.response.send_message(
+            "❄️ Pas connecté.",
+            ephemeral=True
+        )
 
 
+# ─────────────────────────────
+# ❓ /help
+# ─────────────────────────────
+@tree.command(name="help", description="Affiche l'aide")
+async def help_command(interaction: discord.Interaction):
+
+    await interaction.response.send_message(
+        HELP_MESSAGE,
+        ephemeral=True
+    )
+
+
+# ─────────────────────────────
+# READY EVENT
+# ─────────────────────────────
 @client.event
 async def on_ready():
+    await tree.sync()
     print(f"✅ Connecté en tant que {client.user}")
 
 
