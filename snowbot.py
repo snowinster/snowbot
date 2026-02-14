@@ -5,49 +5,21 @@ import random
 import os
 
 TOKEN = os.environ["DISCORD_TOKEN"]
-GUILD_NAME = "Poto-gang"
 
 PLAYLIST = [
     "you say run",
     "Departure",
     "black clover Opening 10",
-    "Heavy is the crown avec linkin park",
-    "Mashle: magic and muscles The divine visionary cadidate exam arc",
+    "Heavy is the crown linkin park",
+    "Mashle divine visionary",
     "Overlord clattanoia",
-    "Tanya the evil JINGO JUNGLE",
-    "Inflation my hero academia",
-    "Akiaura Sleepwalker",
-    "We'll put a stop to them for sure my hero academia",
-    "The demon lord my hero academia",
-    "Undertale CORE",
+    "JINGO JUNGLE",
     "Undertale Megalovania",
-    "Overlord HYDRA",
-    "Overlord HOLLOW HUNGER",
-    "Death note opening",
-    "Snk opening",
-    "Snk you see big girl",
-    "Donne moi ton cœur Louane",
-    "Fly By blue",
-    "STYX HELIX",
-    "Infinite Power the fatrat",
-    "Got well soon breton",
-    "All rise blue",
-    "Save your tears the week-end",
-    "I kissed a girl Katy Perry",
-    "I love it Katy perry",
-    "Sing Ed sheeran",
-    "Vagrant feint veela",
-    "Survival league voicians",
-    "Shake your coconuts junior senior",
+    "SNK you see big girl",
     "Nightcall kavinsky",
-    "Place je passe mozart opéra rock",
     "Bloody stream coda",
-    "Death note ost",
     "Little dark age mgmt",
-    "Take me out Franz ferdinand",
-    "FEEL SOMETHING DIFFERENT bea miller",
-    "Animals maroon 5",
-    "Theater D myth and roid",
+    "Take me out franz ferdinand",
     "Happy doja cat",
     "bleach number one"
 ]
@@ -64,11 +36,10 @@ current_title = None
 
 
 # ─────────────── MUSIQUE ───────────────
-async def play_random(voice_client):
+async def play_random(vc):
     global last_song, current_title
 
-    choices = [s for s in PLAYLIST if s != last_song]
-    song = random.choice(choices)
+    song = random.choice([s for s in PLAYLIST if s != last_song])
     last_song = song
 
     ydl_opts = {
@@ -96,58 +67,30 @@ async def play_random(voice_client):
         volume=0.7
     )
 
-    def after_playing(error):
+    def after_playing(_):
         client.loop.call_soon_threadsafe(
             asyncio.create_task,
-            schedule_next(voice_client)
+            schedule_next(vc)
         )
 
-    voice_client.play(source, after=after_playing)
+    vc.play(source, after=after_playing)
     print(f"🎶 Lecture : {current_title}")
 
 
-async def schedule_next(voice_client):
+async def schedule_next(vc):
     await asyncio.sleep(1)
-
-    if not voice_client.is_connected():
-        return
-
-    await play_random(voice_client)
-
-
-# ─────────────── UTILITAIRE ───────────────
-async def join_and_play(guild, author):
-    if not author.voice:
-        return None, "❌ Tu dois être dans un salon vocal"
-
-    channel = author.voice.channel
-    vc = guild.voice_client
-
-    if not vc:
-        vc = await channel.connect()
-    elif vc.channel != channel:
-        await vc.move_to(channel)
-
-    if not vc.is_playing() and not vc.is_paused():
+    if vc.is_connected():
         await play_random(vc)
-        return vc, "▶️ Playlist lancée"
-    else:
-        return vc, "ℹ️ La musique est déjà en cours"
 
 
 # ─────────────── AUTO-LEAVE 30s ───────────────
-async def auto_leave_after_delay(voice_client):
+async def auto_leave(vc):
     await asyncio.sleep(30)
-
-    if not voice_client.is_connected():
-        return
-
-    # humains uniquement (on ignore les bots)
-    humans = [m for m in voice_client.channel.members if not m.bot]
-
-    if len(humans) == 0:
-        print("👋 Vocal vide depuis 30s → déconnexion")
-        await voice_client.disconnect()
+    if vc.is_connected():
+        humans = [m for m in vc.channel.members if not m.bot]
+        if not humans:
+            print("👋 Vocal vide → auto leave")
+            await vc.disconnect()
 
 
 @client.event
@@ -156,22 +99,55 @@ async def on_voice_state_update(member, before, after):
         return
 
     vc = member.guild.voice_client
-    if not vc or not vc.channel:
-        return
-
-    humans = [m for m in vc.channel.members if not m.bot]
-
-    if len(humans) == 0:
-        print("⏳ Plus personne dans le vocal → timer 30s lancé")
-        client.loop.create_task(auto_leave_after_delay(vc))
+    if vc and vc.channel:
+        humans = [m for m in vc.channel.members if not m.bot]
+        if not humans:
+            client.loop.create_task(auto_leave(vc))
 
 
-# ─────────────── EVENTS ───────────────
-@client.event
-async def on_ready():
-    print(f"✅ Connecté en tant que {client.user}")
+# ─────────────── BOUTONS ───────────────
+class MusicControls(discord.ui.View):
+    def __init__(self, guild):
+        super().__init__(timeout=None)
+        self.guild = guild
+
+    def vc(self):
+        return self.guild.voice_client
+
+    @discord.ui.button(label="Pause", emoji="⏸️", style=discord.ButtonStyle.secondary)
+    async def pause(self, interaction, _):
+        if self.vc() and self.vc().is_playing():
+            self.vc().pause()
+            await interaction.response.send_message("⏸️ Pause", ephemeral=True)
+
+    @discord.ui.button(label="Resume", emoji="▶️", style=discord.ButtonStyle.success)
+    async def resume(self, interaction, _):
+        if self.vc() and self.vc().is_paused():
+            self.vc().resume()
+            await interaction.response.send_message("▶️ Reprise", ephemeral=True)
+
+    @discord.ui.button(label="Skip", emoji="⏭️", style=discord.ButtonStyle.primary)
+    async def skip(self, interaction, _):
+        if self.vc() and self.vc().is_playing():
+            self.vc().stop()
+            await interaction.response.send_message("⏭️ Skip", ephemeral=True)
+
+    @discord.ui.button(label="Now Playing", emoji="🎵", style=discord.ButtonStyle.secondary)
+    async def np(self, interaction, _):
+        if current_title:
+            await interaction.response.send_message(
+                f"🎶 **En cours :** {current_title}", ephemeral=True
+            )
+
+    @discord.ui.button(label="Leave", emoji="👋", style=discord.ButtonStyle.danger)
+    async def leave(self, interaction, _):
+        if self.vc():
+            self.vc().stop()
+            await self.vc().disconnect()
+            await interaction.response.send_message("👋 Déconnecté", ephemeral=True)
 
 
+# ─────────────── COMMANDES TEXTE ───────────────
 @client.event
 async def on_message(message):
     if message.author.bot:
@@ -181,34 +157,45 @@ async def on_message(message):
     vc = message.guild.voice_client
 
     if content == "!playlist":
-        vc, msg = await join_and_play(message.guild, message.author)
-        await message.channel.send(msg)
+        if not message.author.voice:
+            await message.channel.send("❌ Tu dois être en vocal")
+            return
 
-    elif content == "!skip":
-        if vc and vc.is_playing():
-            vc.stop()
-            await message.channel.send("⏭️ Musique suivante")
+        channel = message.author.voice.channel
+        if not vc:
+            vc = await channel.connect()
+        elif vc.channel != channel:
+            await vc.move_to(channel)
 
-    elif content == "!pause":
-        if vc and vc.is_playing():
-            vc.pause()
-            await message.channel.send("⏸️ Musique en pause")
+        if not vc.is_playing():
+            await play_random(vc)
 
-    elif content == "!resume":
-        if vc and vc.is_paused():
-            vc.resume()
-            await message.channel.send("▶️ Reprise de la musique")
+        await message.channel.send(
+            "🎶 **SnowBot Controls**",
+            view=MusicControls(message.guild)
+        )
 
-    elif content == "!np":
-        if vc and (vc.is_playing() or vc.is_paused()):
-            await message.channel.send(f"🎶 **En cours :** {current_title}")
+    elif content == "!skip" and vc:
+        vc.stop()
 
-    elif content == "!leave":
-        if vc:
-            vc.stop()
-            await vc.disconnect()
-            await message.channel.send("👋 Bot déconnecté")
+    elif content == "!pause" and vc:
+        vc.pause()
+
+    elif content == "!resume" and vc:
+        vc.resume()
+
+    elif content == "!np" and current_title:
+        await message.channel.send(f"🎶 **En cours :** {current_title}")
+
+    elif content == "!leave" and vc:
+        vc.stop()
+        await vc.disconnect()
 
 
-# ─────────────── RUN ───────────────
+# ─────────────── READY ───────────────
+@client.event
+async def on_ready():
+    print(f"✅ Connecté en tant que {client.user}")
+
+
 client.run(TOKEN)
