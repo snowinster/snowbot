@@ -58,33 +58,6 @@ class MusicControls(discord.ui.View):
         vc.stop()
         await interaction.response.send_message("⏭️ Skip", ephemeral=True)
 
-    # ─────────────── PREVIOUS ───────────────
-    @discord.ui.button(label="Previous", emoji="⏮️")
-    async def previous(self, interaction: discord.Interaction, button: discord.ui.Button):
-
-        from music.player import play_previous
-
-        await interaction.response.defer(ephemeral=True)
-
-        vc = self.vc()
-
-        if not vc:
-            await interaction.followup.send("❄️ Pas connecté.", ephemeral=True)
-            return
-
-        started = await play_previous(vc)
-
-        if not started:
-            await interaction.followup.send("⚠️ Aucun historique.", ephemeral=True)
-            return
-
-        await asyncio.sleep(0.3)
-
-        await interaction.followup.send(
-            f"⏮️ Lecture : **{state.current_title}**",
-            ephemeral=True
-        )
-
     # ─────────────── NOW PLAYING ───────────────
 
     @discord.ui.button(label="Now Playing", emoji="🎵")
