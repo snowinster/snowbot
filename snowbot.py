@@ -313,10 +313,10 @@ async def on_ready():
         flush=True
     )
 
-print(
-    f"❄️ SnowBot connecté en tant que {client.user} (ID: {client.user.id})",
-    flush=True
-)
+    print(
+        f"❄️ SnowBot connecté en tant que {client.user} (ID: {client.user.id})",
+        flush=True
+    )
 
 
 @client.event
