@@ -7,6 +7,7 @@ HELP_MESSAGE = (
     "• `/pause` → Met la musique en pause\n"
     "• `/resume` → Reprend la musique\n"
     "• `/skip` → Passe à la musique suivante\n"
+    "• `/previous` → Rejoue la musique précédente\n"
     "• `/leave` → Déconnecte le bot du vocal\n\n"
     "📚 **Playlist**\n"
     "• `/add <nom>` → Ajoute une musique à ta playlist\n"
