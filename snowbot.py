@@ -7,7 +7,7 @@ from music.player import play_random, play_track
 from music.controls import MusicControls
 from utils.help_text import HELP_MESSAGE
 from music.player import enqueue_track
-
+from music.player import play_previous
 
 print("🚀 SNOWBOT VERSION WITH PLAY LOADED", flush=True)
 
@@ -273,8 +273,38 @@ async def skip(interaction: discord.Interaction):
 
 
 # ─────────────────────────────
+# ⏮️ /previous
+# ─────────────────────────────
+
+
+@tree.command(name="previous", description="Rejoue la musique précédente")
+async def previous(interaction: discord.Interaction):
+
+    vc = interaction.guild.voice_client
+
+    if not vc:
+        await interaction.response.send_message(
+            "❄️ Pas connecté.",
+            ephemeral=True
+        )
+        return
+
+    started = await play_previous(vc)
+
+    if not started:
+        await interaction.response.send_message(
+            "⚠️ Aucun historique.",
+            ephemeral=True
+        )
+        return
+
+    await interaction.response.send_message("⏮️ Musique précédente")
+
+# ─────────────────────────────
 # 👋 /leave
 # ─────────────────────────────
+
+
 @tree.command(name="leave", description="Déconnecte le bot du vocal")
 async def leave(interaction: discord.Interaction):
 

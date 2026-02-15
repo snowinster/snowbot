@@ -118,6 +118,15 @@ async def play_track(vc, query: str) -> bool:
         except Exception as e:
             print("Queue error:", e)
 
+    guild_id = vc.guild.id
+
+    # Sauvegarde dans l'historique
+    previous = state.current_query.get(guild_id)
+    if previous:
+        state.played_history[guild_id].append(previous)
+
+    state.current_query[guild_id] = query
+
     vc.play(source, after=after_playing)
     return True
 
@@ -180,3 +189,24 @@ async def play_next_queued(vc) -> bool:
             pass
 
     return False
+
+
+async def play_previous(vc) -> bool:
+
+    guild_id = vc.guild.id
+    history = state.played_history.get(guild_id)
+
+    if not history:
+        return False
+
+    previous_query = history.pop()
+
+    # Vider temporairement la queue pour éviter conflit
+    state.queued_tracks[guild_id].clear()
+
+    if vc.is_playing() or vc.is_paused():
+        vc.stop()
+
+    await asyncio.sleep(0.5)
+
+    return await play_track(vc, previous_query)
