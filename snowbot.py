@@ -1,6 +1,6 @@
 import discord
 import music.state as state
-
+import asyncio
 from config import TOKEN, ENV, DEV_GUILD_ID
 from db.playlist import add_track, remove_track, get_user_playlist
 from music.player import play_random, play_track
@@ -16,10 +16,66 @@ intents.voice_states = True
 client = discord.Client(intents=intents)
 tree = discord.app_commands.CommandTree(client)
 
+disconnect_tasks = {}
+
+
+def _guild_has_humans_in_bot_channel(guild: discord.Guild) -> bool:
+
+    vc = guild.voice_client
+
+    if not vc or not vc.channel:
+        return False
+
+    return any(not member.bot for member in vc.channel.members)
+
+
+def _cancel_disconnect_task(guild_id: int) -> None:
+
+    task = disconnect_tasks.pop(guild_id, None)
+
+    if task and not task.done():
+        task.cancel()
+
+
+async def _disconnect_if_still_empty(guild: discord.Guild):
+
+    try:
+        await asyncio.sleep(30)
+
+        vc = guild.voice_client
+
+        if not vc or not vc.channel:
+            return
+
+        if _guild_has_humans_in_bot_channel(guild):
+            return
+
+        vc.stop()
+        await vc.disconnect()
+
+    except asyncio.CancelledError:
+        return
+
+
+def _schedule_disconnect_if_needed(guild: discord.Guild) -> None:
+
+    if _guild_has_humans_in_bot_channel(guild):
+        _cancel_disconnect_task(guild.id)
+        return
+
+    existing = disconnect_tasks.get(guild.id)
+
+    if existing and not existing.done():
+        return
+
+    task = asyncio.create_task(_disconnect_if_still_empty(guild))
+    disconnect_tasks[guild.id] = task
 
 # ─────────────────────────────
 # 🎶 /playlist
 # ─────────────────────────────
+
+
 @tree.command(name="playlist", description="Lance ta playlist personnelle")
 async def playlist(interaction: discord.Interaction):
 
@@ -249,6 +305,24 @@ async def on_ready():
 
     print("COMMANDES APRÈS SYNC :", tree.get_commands())
     print(f"❄️ SnowBot connecté en tant que {client.user}")
+
+
+@client.event
+async def on_voice_state_update(member, before, after):
+
+    guild = member.guild
+    vc = guild.voice_client
+
+    if not vc or not vc.channel:
+        _cancel_disconnect_task(guild.id)
+        return
+
+    bot_channel = vc.channel
+
+    if before.channel != bot_channel and after.channel != bot_channel:
+        return
+
+    _schedule_disconnect_if_needed(guild)
 
 
 client.run(TOKEN)
