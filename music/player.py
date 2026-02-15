@@ -80,7 +80,7 @@ async def play_random(vc, discord_user_id):
     vc.play(source, after=after_playing)
 
 
-async def play_track(vc, query: str):
+async def play_track(vc, query: str) -> bool:
     """
     Joue une musique directement depuis une recherche ou un lien.
     Ne dépend PAS de la playlist.
@@ -97,9 +97,8 @@ async def play_track(vc, query: str):
             url = info["url"]
 
     except Exception as e:
-        await vc.channel.send("❌ Erreur lors du chargement.")
         print("YTDLP ERROR:", e)
-        return
+        return False
 
     source = discord.PCMVolumeTransformer(
         discord.FFmpegPCMAudio(url, **FFMPEG_OPTIONS),
@@ -112,6 +111,7 @@ async def play_track(vc, query: str):
 
     vc.stop()
     vc.play(source, after=after_playing)
+    return True
 
 
 async def schedule_next(vc, discord_user_id):

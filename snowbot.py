@@ -131,10 +131,17 @@ async def play(interaction: discord.Interaction, musique: str):
     elif vc.channel != channel:
         await vc.move_to(channel)
 
-    await play_track(vc, musique)
+    started = await play_track(vc, musique)
+
+    if not started:
+        await interaction.followup.send(
+            "❌ Erreur lors du chargement de la musique.",
+            ephemeral=True
+        )
+        return
 
     await interaction.followup.send(
-        f"🎶 Lecture : **{musique}**",
+        f"🎶 Lecture : **{state.current_title or musique}**",
         view=MusicControls(interaction.guild)
     )
 
