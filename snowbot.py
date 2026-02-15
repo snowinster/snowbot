@@ -8,7 +8,7 @@ from music.controls import MusicControls
 from utils.help_text import HELP_MESSAGE
 
 
-print("🚀 SNOWBOT VERSION WITH PLAY LOADED")
+print("🚀 SNOWBOT VERSION WITH PLAY LOADED", flush=True)
 
 intents = discord.Intents.default()
 intents.voice_states = True
