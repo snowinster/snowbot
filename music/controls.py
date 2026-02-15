@@ -1,3 +1,4 @@
+import asyncio
 import discord
 import music.state as state
 from utils.help_text import HELP_MESSAGE
@@ -77,7 +78,12 @@ class MusicControls(discord.ui.View):
             await interaction.followup.send("⚠️ Aucun historique.", ephemeral=True)
             return
 
-        await interaction.followup.send("⏮️ Musique précédente", ephemeral=True)
+        await asyncio.sleep(0.3)
+
+        await interaction.followup.send(
+            f"⏮️ Lecture : **{state.current_title}**",
+            ephemeral=True
+        )
 
     # ─────────────── NOW PLAYING ───────────────
 
