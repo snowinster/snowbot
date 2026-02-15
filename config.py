@@ -14,12 +14,6 @@ TOKEN = os.environ["DISCORD_TOKEN"]
 # ─────────────────────────────
 
 ENV = os.getenv("ENV", "PROD")
-DEV_GUILD_ID = os.getenv("DEV_GUILD_ID")
-
-if ENV == "DEV":
-    if not DEV_GUILD_ID:
-        raise RuntimeError("DEV_GUILD_ID manquant en mode DEV")
-    DEV_GUILD_ID = int(DEV_GUILD_ID)
 
 
 # ─────────────────────────────
