@@ -109,7 +109,15 @@ async def play_track(vc, query: str) -> bool:
         if error:
             print("Playback error:", error)
 
-    vc.stop()
+        future = asyncio.run_coroutine_threadsafe(
+            play_next_queued(vc),
+            vc.loop
+        )
+        try:
+            future.result()
+        except Exception as e:
+            print("Queue error:", e)
+
     vc.play(source, after=after_playing)
     return True
 
@@ -121,4 +129,54 @@ async def schedule_next(vc, discord_user_id):
     await asyncio.sleep(1)
 
     if vc and vc.is_connected():
+        started = await play_next_queued(vc)
+        if started:
+            return
+
         await play_random(vc, discord_user_id)
+
+
+async def enqueue_track(vc, query: str):
+    """
+    Ajoute un titre en file d'attente si une musique est deja en cours.
+    Sinon, lance immediatement la lecture.
+
+    Retourne: (success, started_now, queue_position)
+    """
+    if vc.is_playing() or vc.is_paused():
+        queue = state.queued_tracks[vc.guild.id]
+        queue.append(query)
+        return True, False, len(queue)
+
+    started = await play_track(vc, query)
+    return started, started, 0
+
+
+async def play_next_queued(vc) -> bool:
+    """
+    Lance la prochaine musique de la queue /play pour ce serveur.
+    Retourne True si une lecture a commence.
+    """
+    await asyncio.sleep(0.5)
+
+    if not vc or not vc.is_connected() or vc.is_playing() or vc.is_paused():
+        return False
+
+    queue = state.queued_tracks.get(vc.guild.id)
+
+    if not queue:
+        return False
+
+    while queue:
+        query = queue.popleft()
+        started = await play_track(vc, query)
+
+        if started:
+            return True
+
+        try:
+            await vc.channel.send(f"Impossible de charger : **{query}**")
+        except Exception:
+            pass
+
+    return False

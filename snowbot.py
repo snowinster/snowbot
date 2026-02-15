@@ -1,4 +1,4 @@
-import discord
+﻿import discord
 import music.state as state
 import asyncio
 from config import TOKEN
@@ -314,7 +314,7 @@ async def on_ready():
     )
 
     print(
-        f"❄️ SnowBot connecté en tan que {client.user} (ID: {client.user.id})",
+        f"❄️ SnowBot connecté en tant que {client.user} (ID: {client.user.id})",
         flush=True
     )
 
