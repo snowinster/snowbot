@@ -4,5 +4,9 @@ last_song = None
 current_title = None
 
 queued_tracks = defaultdict(deque)
-played_history = defaultdict(list)
-current_query = {}
+
+# Historique complet par serveur
+history = defaultdict(list)
+
+# Index courant dans l'historique
+history_index = {}

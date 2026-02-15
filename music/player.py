@@ -120,12 +120,16 @@ async def play_track(vc, query: str) -> bool:
 
     guild_id = vc.guild.id
 
-    # Sauvegarde dans l'historique
-    previous = state.current_query.get(guild_id)
-    if previous:
-        state.played_history[guild_id].append(previous)
+    history = state.history[guild_id]
+    index = state.history_index.get(guild_id, -1)
 
-    state.current_query[guild_id] = query
+    # Si on est revenu en arrière et qu'on joue une nouvelle musique,
+    # on coupe tout ce qui est après l'index
+    if index < len(history) - 1:
+        history[:] = history[:index + 1]
+
+    history.append(query)
+    state.history_index[guild_id] = len(history) - 1
 
     vc.play(source, after=after_playing)
     return True
@@ -194,14 +198,16 @@ async def play_next_queued(vc) -> bool:
 async def play_previous(vc) -> bool:
 
     guild_id = vc.guild.id
-    history = state.played_history.get(guild_id)
 
-    if not history:
+    history = state.history.get(guild_id, [])
+    index = state.history_index.get(guild_id, 0)
+
+    if not history or index <= 0:
         return False
 
-    previous_query = history.pop()
+    state.history_index[guild_id] = index - 1
+    previous_query = history[state.history_index[guild_id]]
 
-    # Vider temporairement la queue pour éviter conflit
     state.queued_tracks[guild_id].clear()
 
     if vc.is_playing() or vc.is_paused():
@@ -209,4 +215,46 @@ async def play_previous(vc) -> bool:
 
     await asyncio.sleep(0.5)
 
-    return await play_track(vc, previous_query)
+    return await play_track_without_history(vc, previous_query)
+
+
+async def play_track_without_history(vc, query: str) -> bool:
+    """
+    Joue une musique sans modifier l'historique.
+    Utilisé pour previous / next.
+    """
+
+    try:
+        with yt_dlp.YoutubeDL(YDL_OPTIONS) as ydl:
+            info = ydl.extract_info(query, download=False)
+
+            if "entries" in info:
+                info = info["entries"][0]
+
+            state.current_title = info.get("title", "Titre inconnu")
+            url = info["url"]
+
+    except Exception as e:
+        print("YTDLP ERROR:", e)
+        return False
+
+    source = discord.PCMVolumeTransformer(
+        discord.FFmpegPCMAudio(url, **FFMPEG_OPTIONS),
+        volume=0.7
+    )
+
+    def after_playing(error):
+        if error:
+            print("Playback error:", error)
+
+        future = asyncio.run_coroutine_threadsafe(
+            play_next_queued(vc),
+            vc.loop
+        )
+        try:
+            future.result()
+        except Exception as e:
+            print("Queue error:", e)
+
+    vc.play(source, after=after_playing)
+    return True
