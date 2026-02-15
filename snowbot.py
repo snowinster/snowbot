@@ -6,6 +6,7 @@ from db.playlist import add_track, remove_track, get_user_playlist
 from music.player import play_random, play_track
 from music.controls import MusicControls
 from utils.help_text import HELP_MESSAGE
+from music.player import enqueue_track
 
 
 print("🚀 SNOWBOT VERSION WITH PLAY LOADED", flush=True)
@@ -110,7 +111,7 @@ async def playlist(interaction: discord.Interaction):
 # ─────────────────────────────
 # ▶️ /play
 # ─────────────────────────────
-@tree.command(name="play", description="Joue une musique directement")
+@tree.command(name="play", description="Ajoute une musique à la file d'attente")
 async def play(interaction: discord.Interaction, musique: str):
 
     await interaction.response.defer()
@@ -130,19 +131,25 @@ async def play(interaction: discord.Interaction, musique: str):
     elif vc.channel != channel:
         await vc.move_to(channel)
 
-    started = await play_track(vc, musique)
+    success, started_now, position = await enqueue_track(vc, musique)
 
-    if not started:
+    if not success:
         await interaction.followup.send(
-            "❌ Erreur lors du chargement de la musique.",
+            "❌ Impossible de charger la musique.",
             ephemeral=True
         )
         return
 
-    await interaction.followup.send(
-        f"🎶 Lecture : **{state.current_title or musique}**",
-        view=MusicControls(interaction.guild)
-    )
+    if started_now:
+        await interaction.followup.send(
+            f"🎶 Lecture : **{state.current_title or musique}**",
+            view=MusicControls(interaction.guild)
+        )
+    else:
+        await interaction.followup.send(
+            f"➕ Ajouté à la file (position {position}) : **{musique}**",
+            ephemeral=True
+        )
 
 
 # ─────────────────────────────
