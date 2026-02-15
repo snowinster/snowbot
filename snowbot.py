@@ -107,42 +107,10 @@ async def playlist(interaction: discord.Interaction):
     )
 
 
-@tree.command(name="playlist1", description="Lance ta playlist personnelle")
-async def playlist(interaction: discord.Interaction):
-
-    # 👇 1) On accuse réception IMMÉDIATEMENT
-    await interaction.response.defer()
-
-    if not interaction.user.voice:
-        await interaction.followup.send(
-            "❌ Tu dois être en vocal.",
-            ephemeral=True
-        )
-        return
-
-    channel = interaction.user.voice.channel
-    vc = interaction.guild.voice_client
-
-    if not vc:
-        vc = await channel.connect()
-    elif vc.channel != channel:
-        await vc.move_to(channel)
-
-    if not vc.is_playing():
-        await play_random(vc, interaction.user.id)
-
-    # 👇 2) On envoie les boutons après
-    await interaction.followup.send(
-        "🎶 **SnowBot Controls**",
-        view=MusicControls(interaction.guild)
-    )
-
-
 # ─────────────────────────────
 # ▶️ /play
 # ─────────────────────────────
 @tree.command(name="play", description="Joue une musique directement")
-@discord.app_commands.describe(musique="Nom ou lien de la musique")
 async def play(interaction: discord.Interaction, musique: str):
 
     await interaction.response.defer()
@@ -331,18 +299,18 @@ async def help_command(interaction: discord.Interaction):
 @client.event
 async def on_ready():
 
-    print("COMMANDES AVANT SYNC :", tree.get_commands())
+    print("COMMANDES AVANT SYNC :", tree.get_commands(), flush=True)
 
     if ENV == "DEV":
         guild = discord.Object(id=DEV_GUILD_ID)
         await tree.sync(guild=guild)
-        print("✅ Sync DEV instantané")
+        print("✅ Sync DEV instantané", flush=True)
     else:
         await tree.sync()
         print("🌍 Sync GLOBAL")
 
-    print("COMMANDES APRÈS SYNC :", tree.get_commands())
-    print(f"❄️ SnowBot connecté en tant que {client.user}")
+    print("COMMANDES APRÈS SYNC :", tree.get_commands(), flush=True)
+    print(f"❄️ SnowBot connecté en tant que {client.user}", flush=True)
 
 
 @client.event
