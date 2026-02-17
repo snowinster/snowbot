@@ -7,12 +7,15 @@ import music.state as state
 from db.playlist import get_user_playlist
 
 
+# ─────────────── YTDLP CONFIG ───────────────
+
 YDL_OPTIONS = {
     "format": "bestaudio/best",
     "quiet": True,
     "no_warnings": True,
     "noplaylist": True,
     "default_search": "ytsearch",
+    "ignoreerrors": True,
     "extractor_args": {
         "youtube": {
             "player_client": ["android"]
@@ -26,11 +29,67 @@ FFMPEG_OPTIONS = {
 }
 
 
+# ────────────────────────────────────────────
+# UTIL
+# ────────────────────────────────────────────
+
+async def _extract_audio(query: str, vc) -> tuple | None:
+    try:
+        with yt_dlp.YoutubeDL(YDL_OPTIONS) as ydl:
+            info = ydl.extract_info(query, download=False)
+
+            if not info:
+                return None
+
+            if "entries" in info:
+                info = info["entries"][0]
+
+            title = info.get("title", "Titre inconnu")
+            url = info.get("url")
+
+            if not url:
+                return None
+
+            return title, url
+
+    except yt_dlp.utils.DownloadError as e:
+        print("YTDLP DownloadError:", e)
+
+        if "Sign in to confirm your age" in str(e):
+            try:
+                await vc.channel.send("🔞 Vidéo bloquée (restriction d'âge YouTube).")
+            except:
+                pass
+        else:
+            try:
+                await vc.channel.send("❌ Impossible de charger la musique.")
+            except:
+                pass
+
+        return None
+
+    except Exception as e:
+        print("YTDLP ERROR:", e)
+        return None
+
+
+def _create_source(url: str):
+    return discord.PCMVolumeTransformer(
+        discord.FFmpegPCMAudio(url, **FFMPEG_OPTIONS),
+        volume=0.7
+    )
+
+
+def _safe_stop(vc):
+    if vc and (vc.is_playing() or vc.is_paused()):
+        vc.stop()
+
+
+# ────────────────────────────────────────────
+# PLAY RANDOM (playlist perso)
+# ────────────────────────────────────────────
+
 async def play_random(vc, discord_user_id):
-    """
-    Joue une musique aléatoire depuis la playlist utilisateur
-    et enchaîne automatiquement à la fin.
-    """
 
     playlist = get_user_playlist(discord_user_id)
 
@@ -38,31 +97,19 @@ async def play_random(vc, discord_user_id):
         await vc.channel.send("📭 Ta playlist est vide.")
         return
 
-    # 🔁 Évite répétition immédiate
     choices = [s for s in playlist if s != state.last_song]
     song = random.choice(choices if choices else playlist)
 
     state.last_song = song
 
-    try:
-        with yt_dlp.YoutubeDL(YDL_OPTIONS) as ydl:
-            info = ydl.extract_info(song, download=False)
-
-            if "entries" in info:
-                info = info["entries"][0]
-
-            state.current_title = info.get("title", "Titre inconnu")
-            url = info["url"]
-
-    except Exception as e:
-        await vc.channel.send("❌ Erreur lors du chargement de la musique.")
-        print("YTDLP ERROR:", e)
+    extracted = await _extract_audio(song, vc)
+    if not extracted:
         return
 
-    source = discord.PCMVolumeTransformer(
-        discord.FFmpegPCMAudio(url, **FFMPEG_OPTIONS),
-        volume=0.7
-    )
+    title, url = extracted
+    state.current_title = title
+
+    source = _create_source(url)
 
     def after_playing(error):
         if error:
@@ -77,33 +124,24 @@ async def play_random(vc, discord_user_id):
         except Exception as e:
             print("Schedule error:", e)
 
+    _safe_stop(vc)
     vc.play(source, after=after_playing)
 
 
+# ────────────────────────────────────────────
+# PLAY DIRECT
+# ────────────────────────────────────────────
+
 async def play_track(vc, query: str) -> bool:
-    """
-    Joue une musique directement depuis une recherche ou un lien.
-    Ne dépend PAS de la playlist.
-    """
 
-    try:
-        with yt_dlp.YoutubeDL(YDL_OPTIONS) as ydl:
-            info = ydl.extract_info(query, download=False)
-
-            if "entries" in info:
-                info = info["entries"][0]
-
-            state.current_title = info.get("title", "Titre inconnu")
-            url = info["url"]
-
-    except Exception as e:
-        print("YTDLP ERROR:", e)
+    extracted = await _extract_audio(query, vc)
+    if not extracted:
         return False
 
-    source = discord.PCMVolumeTransformer(
-        discord.FFmpegPCMAudio(url, **FFMPEG_OPTIONS),
-        volume=0.7
-    )
+    title, url = extracted
+    state.current_title = title
+
+    source = _create_source(url)
 
     def after_playing(error):
         if error:
@@ -120,25 +158,29 @@ async def play_track(vc, query: str) -> bool:
 
     guild_id = vc.guild.id
 
-    history = state.history[guild_id]
-    index = state.history_index.get(guild_id, -1)
+    state.history.setdefault(guild_id, [])
+    state.history_index.setdefault(guild_id, -1)
 
-    # Si on est revenu en arrière et qu'on joue une nouvelle musique,
-    # on coupe tout ce qui est après l'index
+    history = state.history[guild_id]
+    index = state.history_index[guild_id]
+
     if index < len(history) - 1:
         history[:] = history[:index + 1]
 
     history.append(query)
     state.history_index[guild_id] = len(history) - 1
 
+    _safe_stop(vc)
     vc.play(source, after=after_playing)
+
     return True
 
 
+# ────────────────────────────────────────────
+# SCHEDULER
+# ────────────────────────────────────────────
+
 async def schedule_next(vc, discord_user_id):
-    """
-    Attends 1 seconde puis relance une musique si le bot est toujours connecté.
-    """
     await asyncio.sleep(1)
 
     if vc and vc.is_connected():
@@ -149,13 +191,14 @@ async def schedule_next(vc, discord_user_id):
         await play_random(vc, discord_user_id)
 
 
-async def enqueue_track(vc, query: str):
-    """
-    Ajoute un titre en file d'attente si une musique est deja en cours.
-    Sinon, lance immediatement la lecture.
+# ────────────────────────────────────────────
+# QUEUE
+# ────────────────────────────────────────────
 
-    Retourne: (success, started_now, queue_position)
-    """
+async def enqueue_track(vc, query: str):
+
+    state.queued_tracks.setdefault(vc.guild.id, [])
+
     if vc.is_playing() or vc.is_paused():
         queue = state.queued_tracks[vc.guild.id]
         queue.append(query)
@@ -166,10 +209,7 @@ async def enqueue_track(vc, query: str):
 
 
 async def play_next_queued(vc) -> bool:
-    """
-    Lance la prochaine musique de la queue /play pour ce serveur.
-    Retourne True si une lecture a commence.
-    """
+
     await asyncio.sleep(0.5)
 
     if not vc or not vc.is_connected() or vc.is_playing() or vc.is_paused():
@@ -181,19 +221,24 @@ async def play_next_queued(vc) -> bool:
         return False
 
     while queue:
-        query = queue.popleft()
+        query = queue.pop(0)
+
         started = await play_track(vc, query)
 
         if started:
             return True
 
         try:
-            await vc.channel.send(f"Impossible de charger : **{query}**")
-        except Exception:
+            await vc.channel.send(f"❌ Impossible de charger : **{query}**")
+        except:
             pass
 
     return False
 
+
+# ────────────────────────────────────────────
+# PREVIOUS
+# ────────────────────────────────────────────
 
 async def play_previous(vc) -> bool:
 
@@ -208,40 +253,24 @@ async def play_previous(vc) -> bool:
     state.history_index[guild_id] = index - 1
     previous_query = history[state.history_index[guild_id]]
 
-    state.queued_tracks[guild_id].clear()
+    state.queued_tracks.setdefault(guild_id, []).clear()
 
-    if vc.is_playing() or vc.is_paused():
-        vc.stop()
-
+    _safe_stop(vc)
     await asyncio.sleep(0.5)
 
     return await play_track_without_history(vc, previous_query)
 
 
 async def play_track_without_history(vc, query: str) -> bool:
-    """
-    Joue une musique sans modifier l'historique.
-    Utilisé pour previous / next.
-    """
 
-    try:
-        with yt_dlp.YoutubeDL(YDL_OPTIONS) as ydl:
-            info = ydl.extract_info(query, download=False)
-
-            if "entries" in info:
-                info = info["entries"][0]
-
-            state.current_title = info.get("title", "Titre inconnu")
-            url = info["url"]
-
-    except Exception as e:
-        print("YTDLP ERROR:", e)
+    extracted = await _extract_audio(query, vc)
+    if not extracted:
         return False
 
-    source = discord.PCMVolumeTransformer(
-        discord.FFmpegPCMAudio(url, **FFMPEG_OPTIONS),
-        volume=0.7
-    )
+    title, url = extracted
+    state.current_title = title
+
+    source = _create_source(url)
 
     def after_playing(error):
         if error:
@@ -256,5 +285,7 @@ async def play_track_without_history(vc, query: str) -> bool:
         except Exception as e:
             print("Queue error:", e)
 
+    _safe_stop(vc)
     vc.play(source, after=after_playing)
+
     return True
