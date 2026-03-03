@@ -80,32 +80,35 @@ def _schedule_disconnect_if_needed(guild: discord.Guild) -> None:
 @tree.command(name="playlist", description="Lance ta playlist personnelle")
 async def playlist(interaction: discord.Interaction):
 
-    # 👇 1) On accuse réception IMMÉDIATEMENT
-    await interaction.response.defer()
+    try:
+        await interaction.response.defer()
+    except discord.errors.NotFound:
+        return  # Interaction expirée, on abandonne silencieusement
 
     if not interaction.user.voice:
-        await interaction.followup.send(
-            "❌ Tu dois être en vocal.",
-            ephemeral=True
-        )
+        await interaction.followup.send("❌ Tu dois être en vocal.", ephemeral=True)
         return
 
     channel = interaction.user.voice.channel
     vc = interaction.guild.voice_client
 
-    if not vc:
-        vc = await channel.connect(self_deaf=True, timeout=30)
-    elif vc.channel != channel:
-        await vc.move_to(channel)
+    try:
+        if not vc:
+            vc = await channel.connect(self_deaf=True, timeout=30)
+        elif vc.channel != channel:
+            await vc.move_to(channel)
+    except Exception as e:
+        print(f"Erreur connexion vocale: {e}", flush=True)
+        await interaction.followup.send("❌ Impossible de rejoindre le vocal.", ephemeral=True)
+        return
 
     if not vc.is_connected():
-        await interaction.followup.send("❌ Impossible de rejoindre le vocal.", ephemeral=True)
+        await interaction.followup.send("❌ Connexion vocale échouée.", ephemeral=True)
         return
 
     if not vc.is_playing():
         await play_random(vc, interaction.user.id)
 
-    # 👇 2) On envoie les boutons après
     await interaction.followup.send(
         "🎶 **SnowBot Controls**",
         view=MusicControls(interaction.guild)
@@ -118,25 +121,30 @@ async def playlist(interaction: discord.Interaction):
 @tree.command(name="play", description="Ajoute une musique à la file d'attente")
 async def play(interaction: discord.Interaction, musique: str):
 
-    await interaction.response.defer()
+    try:
+        await interaction.response.defer()
+    except discord.errors.NotFound:
+        return
 
     if not interaction.user.voice:
-        await interaction.followup.send(
-            "❌ Tu dois être en vocal.",
-            ephemeral=True
-        )
+        await interaction.followup.send("❌ Tu dois être en vocal.", ephemeral=True)
         return
 
     channel = interaction.user.voice.channel
     vc = interaction.guild.voice_client
 
-    if not vc:
-        vc = await channel.connect(self_deaf=True, timeout=30)
-    elif vc.channel != channel:
-        await vc.move_to(channel)
+    try:
+        if not vc:
+            vc = await channel.connect(self_deaf=True, timeout=30)
+        elif vc.channel != channel:
+            await vc.move_to(channel)
+    except Exception as e:
+        print(f"Erreur connexion vocale: {e}", flush=True)
+        await interaction.followup.send("❌ Impossible de rejoindre le vocal.", ephemeral=True)
+        return
 
     if not vc.is_connected():
-        await interaction.followup.send("❌ Impossible de rejoindre le vocal.", ephemeral=True)
+        await interaction.followup.send("❌ Connexion vocale échouée.", ephemeral=True)
         return
 
     success, started_now, position = await enqueue_track(vc, musique)
