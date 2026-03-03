@@ -1,7 +1,12 @@
 FROM python:3.11-slim
 
-# Installer ffmpeg
-RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
+# Installer ffmpeg + dépendances de compilation pour PyNaCl (libsodium)
+RUN apt-get update && apt-get install -y \
+    ffmpeg \
+    libsodium-dev \
+    gcc \
+    libffi-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 # Dossier de travail
 WORKDIR /app
