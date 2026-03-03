@@ -125,6 +125,11 @@ async def play_random(vc, discord_user_id):
             print("Schedule error:", e)
 
     _safe_stop(vc)
+
+    if not vc.is_connected():
+        print("play_random: vc not connected, aborting play")
+        return
+
     vc.play(source, after=after_playing)
 
 
@@ -171,6 +176,11 @@ async def play_track(vc, query: str) -> bool:
     state.history_index[guild_id] = len(history) - 1
 
     _safe_stop(vc)
+
+    if not vc.is_connected():
+        print("play_track: vc not connected, aborting play")
+        return False
+
     vc.play(source, after=after_playing)
 
     return True
@@ -286,6 +296,11 @@ async def play_track_without_history(vc, query: str) -> bool:
             print("Queue error:", e)
 
     _safe_stop(vc)
+
+    if not vc.is_connected():
+        print("play_track_without_history: vc not connected, aborting play")
+        return False
+
     vc.play(source, after=after_playing)
 
     return True

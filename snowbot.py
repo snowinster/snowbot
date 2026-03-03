@@ -94,9 +94,13 @@ async def playlist(interaction: discord.Interaction):
     vc = interaction.guild.voice_client
 
     if not vc:
-        vc = await channel.connect()
+        vc = await channel.connect(self_deaf=True, timeout=30)
     elif vc.channel != channel:
         await vc.move_to(channel)
+
+    if not vc.is_connected():
+        await interaction.followup.send("❌ Impossible de rejoindre le vocal.", ephemeral=True)
+        return
 
     if not vc.is_playing():
         await play_random(vc, interaction.user.id)
@@ -127,9 +131,13 @@ async def play(interaction: discord.Interaction, musique: str):
     vc = interaction.guild.voice_client
 
     if not vc:
-        vc = await channel.connect()
+        vc = await channel.connect(self_deaf=True, timeout=30)
     elif vc.channel != channel:
         await vc.move_to(channel)
+
+    if not vc.is_connected():
+        await interaction.followup.send("❌ Impossible de rejoindre le vocal.", ephemeral=True)
+        return
 
     success, started_now, position = await enqueue_track(vc, musique)
 
